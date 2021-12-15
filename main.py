@@ -1,5 +1,5 @@
 """
-I rewrote this script and updated some checks to it.
+I rewrote this script and added some checks to it.
 If you have any questions pm me on discord: darby#0001
 """
 
