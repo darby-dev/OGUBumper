@@ -4,69 +4,79 @@ import json
 import time
 import re
 
-#   Original GitHub:
-#           https://github.com/AdventurefulGIT/OGUsers-Bumper/
-#   
-#   Since the old version was not giving any information about blocks.. 
-#   I decided to rewrite it.
-#
-#   If you have any question message me.
-#   Contact: darby#0001 on Discord
-
 class OGBumper:
+    """
+    Constructor
+    This function is being called upon class initialisation
+    """
     def __init__(self):
-        self.session = cloudscraper.create_scraper({
-            'browser': 'chrome',
-            'platform': 'android',
-            'desktop': 'false'
-        })
-
-        self.session.headers.update({'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
-
+        #Loading the config
         self.config = json.load(open('config.json'))
-        self.session.cookies.set("ogusersmybbuser", self.config['mybbuser'], domain="ogusers.com")
 
+        #Creating our cloudscraper instance and setting headers and cookies
+        self.scraper = cloudscraper.create_scraper()
+        self.scraper.headers.update({'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+        self.scraper.cookies.set("ogusersmybbuser", self.config['mybbuser'], domain="ogusers.com")
+
+        #Last post variable so we don't send the same content twice in a row
         self.last_post = ""
+
+        #Starting the bot
         self.StartBumper()
-    
-    # This method pulls your posting key from ogusers
+
+    """
+    This function is pulling the 'my_post_key' value from the website below.
+    This key is required to perform the actual bumping
+    """
     def GetPostKey(self):
-        r = self.session.get(url = "https://ogusers.com/misc.php?action=help&hid=33")     
-        if self.IsBlocked():
-            return "[GetPostKey] You are currently ip blocked! The block should resolve itself after 15-45 minutes."
+        #Requesting the webpage
+        result = self.scraper.get(url = "https://ogusers.com/misc.php?action=help&hid=33")
+
+        #Checking if we are ip blocked by cloudflare
+        if re.search("<title>Please Wait... | Cloudflare</title>", result.text):
+            print("[GetPostKey] You are currently ip blocked by Cloudflare! Please try again in 15-45 minutes.")
+            exit()
+        #Checking if we are blocked by OGUsers
+        elif re.search("<title>OGUsers</title>", result.text) and re.search("<span>Access Denied.</span>", result.text):
+            print("[GetPostKey] You are currently ip blocked by OGUsers! Please try again later.")
+            exit()
+        #We are not blocked so we return the post key
         else:
-            try:
-                return re.search("my_post_key = \"(.+?)\";", r.text).group(1)
-            except:
-                return "No post key was found!"
+            return re.search("my_post_key = \"(.+?)\";", result.text).group(1)
+              
     
-    # This method pulls a thread id from a given url
+    """
+    This function pulls the threadid from a given thread
+    This id is required to perform the actual bumping
+    """
     def GetThreadID(self, threadURL):
-        r = self.session.get(url = threadURL)
-        if self.IsBlocked():
-            return "[GetThreadID] You are currently ip blocked! The block should resolve itself after 15-45 minutes."
-        else:
-            try:
-                return re.findall("newreply\.php\?tid=(\d+)", r.text)[0]
-            except:
-                return f"No id found for thread {threadURL}"
+        #Requesting the webpage
+        result = self.scraper.get(url = threadURL)
 
-    # This methods checks if we are blocked by cloudflare
-    def IsBlocked(self):
-        r = self.session.get(url = "https://ogusers.com/misc.php?action=help&hid=33")
-        if re.search("<title>Please Wait... | Cloudflare</title>", r.text):
-            return True
+        #Checking if we are ip blocked by cloudflare
+        if re.search("<title>Please Wait... | Cloudflare</title>", result.text):
+            print("[GetThreadID] You are currently ip blocked by Cloudflare! Please try again in 15-45 minutes.")
+            exit()
+        #Checking if we are blocked by OGUsers
+        elif re.search("<title>OGUsers</title>", result.text) and re.search("<span>Access Denied.</span>", result.text):
+            print("[GetThreadID] You are currently ip blocked by OGUsers! Please try again later.")
+            exit()
+        #We are not blocked so we return the threadid
         else:
-            return False
+            return re.findall("newreply\.php\?tid=(\d+)", result.text)[0]
 
-    # This method pulls a random post from the config.json file
+    """
+    This functions pulls a random post from the config
+    """
     def GetRandomPost(self):
         post = random.choice(self.config["settings"]["content"])
         return post if not post == self.last_post else self.GetRandomPost()
     
-    # This method sends the auto bump
+    """
+    This functions performs the bumping
+    """
     def SendBump(self, message, threadURL):
-        r = self.session.post(
+        result = self.scraper.post(
             url = "https://ogusers.com/newreply.php?ajax=1",
             data = {
                 'my_post_key': self.GetPostKey(),
@@ -81,15 +91,25 @@ class OGBumper:
             }
         )
 
-        if self.IsBlocked():
-            return "[SendBump] You are currently ip blocked! The block should resolve itself after 15-45 minutes."
+        #Checking if we are ip blocked by cloudflare
+        if re.search("<title>Please Wait... | Cloudflare</title>", result.text):
+            print("[SendBump] You are currently ip blocked by Cloudflare! Please try again in 15-45 minutes.")
+            exit()
+        #Checking if we are blocked by OGUsers
+        elif re.search("<title>OGUsers</title>", result.text) and re.search("<span>Access Denied.</span>", result.text):
+            print("[SendBump] You are currently ip blocked by OGUsers! Please try again later.")
+            exit()
+        #We are not blocked so we return error or success message depending on the result we get
         else:
-            try:
-                return f"[SendBump] Successfully bumped thread with url {threadURL}"
-            except:
-                return f"[SendBump] Unknown error while auto bumping thread with url {threadURL}"
+            data = json.loads(result.text)
+            if "data" in data:
+                return f"[SendBump] Successfully bumped post with url {threadURL} !"
+            elif "errors" in data:
+                return f"[SendBump] Error while bumping! {result.text}"
 
-    # Starting the bot
+    """
+    This function starts the bot
+    """
     def StartBumper(self):
         while True:
             for thread in self.config['settings']['threads']:
