@@ -1,0 +1,9 @@
+{
+	"mybbuser":"",
+	"proxy": false,
+	"settings":{
+		"delay": 3600,
+		"content":["Testing bumping", "Testing bumping #2"],
+		"threads":[""]
+	}
+}

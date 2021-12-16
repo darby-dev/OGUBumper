@@ -1,0 +1,3 @@
+put your proxies here
+
+http proxies are good
